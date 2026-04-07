@@ -1,72 +1,50 @@
 /**
  * WebSocket signaling server for the ScreenShare Android app.
  *
- * Rooms: one broadcaster streams to one or more viewers.
+ * Strict 1:1 model: one broadcaster, one viewer per session.
  * Messages are plain JSON objects with a "type" field.
  *
- * Room options (set at create time):
- *   password   – optional PIN; viewers must supply the same value to join
- *   maxViewers – 0 means unlimited; positive integer caps simultaneous viewers
- *   useKnock   – if true, viewers must knock and broadcaster must accept them
+ * Client → server:
+ *   create        { roomId, password? }   – broadcaster registers a session slug
+ *   join          { roomId, password? }   – viewer connects to a session
+ *   offer         { sdp }                 – broadcaster → viewer
+ *   answer        { sdp }                 – viewer → broadcaster
+ *   ice_candidate { candidate }           – relayed to the other peer
  *
- * Extra server → client messages beyond the baseline:
- *   viewer_count   { count }                   – broadcast count to broadcaster
- *   viewer_knock   { viewerId, displayName }   – broadcaster sees a knock
- *   knock_accepted {}                           – viewer was accepted
- *   knock_rejected {}                           – viewer was rejected
- *   rejected       { reason }                  – viewer was turned away
+ * Server → client:
+ *   created        { roomId }             – session registered successfully
+ *   joined         { roomId }             – viewer admitted
+ *   viewer_joined  {}                     – broadcaster notified viewer arrived
+ *   viewer_left    {}                     – broadcaster notified viewer disconnected
+ *   broadcast_ended {}                    – viewer notified broadcaster left
+ *   rejected       { reason }             – viewer turned away (not_found | wrong_password | session_full)
+ *   error          { message }
  *
  * HTTP endpoints:
- *   GET /rooms   – returns JSON array of discoverable rooms
- *   GET /        – health check
+ *   GET /   – health check
  *
- * Room expiry: rooms auto-close after ROOM_IDLE_MS of no viewer activity
- * when there are no viewers connected.
+ * Session expiry: a session is deleted 5 min after the broadcaster disconnects.
  */
 
 'use strict';
 
 const http = require('http');
-const { randomUUID } = require('crypto');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8080;
-/** Rooms with no viewers are deleted after this many ms of broadcaster-only idle. */
-const ROOM_IDLE_MS = 30 * 60 * 1000; // 30 minutes
+/** A session is deleted this many ms after the broadcaster disconnects. */
+const SESSION_EXPIRE_MS = 5 * 60 * 1000; // 5 minutes
 
 // ---------------------------------------------------------------------------
-// HTTP server (serves health check + room discovery)
+// HTTP server (health check only)
 // ---------------------------------------------------------------------------
 
 const server = http.createServer((req, res) => {
-    const url = new URL(req.url, `http://localhost:${PORT}`);
-
-    if (url.pathname === '/rooms' && req.method === 'GET') {
-        const list = [];
-        rooms.forEach((room, roomId) => {
-            if (!room.hidden) {
-                list.push({
-                    roomId,
-                    viewerCount: room.viewers.length,
-                    hasPassword: !!room.password,
-                    useKnock: !!room.useKnock,
-                });
-            }
-        });
-        res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-        });
-        res.end(JSON.stringify(list));
+    if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ScreenShare signaling server OK\n');
         return;
     }
-
-    if (url.pathname === '/' || url.pathname === '') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(roomDiscoveryPage());
-        return;
-    }
-
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found\n');
 });
@@ -78,18 +56,14 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 /**
- * rooms: Map<roomId, {
+ * sessions: Map<slug, {
  *   broadcaster: WebSocket,
- *   viewers: WebSocket[],
- *   password: string|null,
- *   maxViewers: number,       // 0 = unlimited
- *   useKnock: boolean,
- *   hidden: boolean,          // excluded from /rooms discovery
- *   pendingViewers: Map<viewerId, WebSocket>,
- *   idleTimer: ReturnType<typeof setTimeout>|null,
+ *   viewer:      WebSocket | null,
+ *   password:    string    | null,
+ *   expireTimer: ReturnType<typeof setTimeout> | null,
  * }>
  */
-const rooms = new Map();
+const sessions = new Map();
 
 wss.on('connection', (ws) => {
     ws.isAlive = true;
@@ -100,7 +74,7 @@ wss.on('connection', (ws) => {
         try {
             msg = JSON.parse(data.toString());
         } catch {
-            ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+            safeSend(ws, { type: 'error', message: 'Invalid JSON' });
             return;
         }
         handleMessage(ws, msg);
@@ -114,133 +88,74 @@ function handleMessage(ws, msg) {
     switch (msg.type) {
 
         // ------------------------------------------------------------------
-        // Room management
+        // Session management
         // ------------------------------------------------------------------
 
         case 'create': {
-            const { roomId, password, maxViewers, useKnock, hidden } = msg;
-            if (!roomId) { return sendError(ws, 'roomId required'); }
-            if (rooms.has(roomId)) { return sendError(ws, 'Room already exists'); }
-            const room = {
+            const { roomId, password } = msg;
+            if (!roomId) { return safeSend(ws, { type: 'error', message: 'roomId required' }); }
+            if (sessions.has(roomId)) { return safeSend(ws, { type: 'error', message: 'Session already exists' }); }
+            sessions.set(roomId, {
                 broadcaster: ws,
-                viewers: [],
+                viewer: null,
                 password: password || null,
-                maxViewers: (Number.isInteger(maxViewers) && maxViewers > 0) ? maxViewers : 0,
-                useKnock: !!useKnock,
-                hidden: !!hidden,
-                pendingViewers: new Map(),
-                idleTimer: null,
-            };
-            rooms.set(roomId, room);
-            ws.roomId = roomId;
+                expireTimer: null,
+            });
+            ws.sessionId = roomId;
             ws.role = 'broadcaster';
-            ws.send(JSON.stringify({ type: 'created', roomId }));
-            scheduleIdleExpiry(roomId);
-            console.log(`Room created: ${roomId} (pw:${!!room.password} max:${room.maxViewers} knock:${room.useKnock})`);
+            safeSend(ws, { type: 'created', roomId });
+            console.log(`Session created: ${roomId}`);
             break;
         }
 
         case 'join': {
             const { roomId, password } = msg;
-            const room = rooms.get(roomId);
-            if (!room) { return sendError(ws, 'Room not found'); }
-
-            // Password check
-            if (room.password && room.password !== password) {
+            const session = sessions.get(roomId);
+            if (!session) { return safeSend(ws, { type: 'rejected', reason: 'not_found' }); }
+            if (session.password && session.password !== password) {
                 return safeSend(ws, { type: 'rejected', reason: 'wrong_password' });
             }
-
-            // Viewer limit check
-            if (room.maxViewers > 0 && room.viewers.length >= room.maxViewers) {
-                return safeSend(ws, { type: 'rejected', reason: 'room_full' });
+            if (session.viewer !== null) {
+                return safeSend(ws, { type: 'rejected', reason: 'session_full' });
             }
-
-            if (room.useKnock) {
-                // Place the viewer in the waiting room and notify broadcaster.
-                const viewerId = randomUUID();
-                room.pendingViewers.set(viewerId, ws);
-                ws.roomId = roomId;
-                ws.role = 'pending';
-                ws.viewerId = viewerId;
-                ws.send(JSON.stringify({ type: 'knock_sent' }));
-                safeSend(room.broadcaster, {
-                    type: 'viewer_knock',
-                    viewerId,
-                    displayName: msg.displayName || `Viewer ${room.viewers.length + room.pendingViewers.size}`,
-                });
-                console.log(`Viewer knocked on room: ${roomId} (${viewerId})`);
-            } else {
-                admitViewer(ws, room, roomId);
-            }
+            cancelExpiry(roomId);
+            session.viewer = ws;
+            ws.sessionId = roomId;
+            ws.role = 'viewer';
+            safeSend(ws, { type: 'joined', roomId });
+            safeSend(session.broadcaster, { type: 'viewer_joined' });
+            console.log(`Viewer joined session: ${roomId}`);
             break;
         }
 
         // ------------------------------------------------------------------
-        // Knock-to-enter flow
-        // ------------------------------------------------------------------
-
-        case 'accept': {
-            const { viewerId } = msg;
-            const room = rooms.get(ws.roomId);
-            if (!room || ws.role !== 'broadcaster') { return; }
-            const pendingWs = room.pendingViewers.get(viewerId);
-            if (!pendingWs) { return; }
-            room.pendingViewers.delete(viewerId);
-
-            // Viewer limit re-check after the broadcaster approved.
-            if (room.maxViewers > 0 && room.viewers.length >= room.maxViewers) {
-                safeSend(pendingWs, { type: 'rejected', reason: 'room_full' });
-                return;
-            }
-
-            safeSend(pendingWs, { type: 'knock_accepted' });
-            admitViewer(pendingWs, room, ws.roomId);
-            break;
-        }
-
-        case 'reject': {
-            const { viewerId } = msg;
-            const room = rooms.get(ws.roomId);
-            if (!room || ws.role !== 'broadcaster') { return; }
-            const pendingWs = room.pendingViewers.get(viewerId);
-            if (!pendingWs) { return; }
-            room.pendingViewers.delete(viewerId);
-            safeSend(pendingWs, { type: 'knock_rejected' });
-            console.log(`Viewer rejected from room: ${ws.roomId} (${viewerId})`);
-            break;
-        }
-
-        // ------------------------------------------------------------------
-        // WebRTC signaling
+        // WebRTC signaling – relayed directly to the other peer
         // ------------------------------------------------------------------
 
         case 'offer': {
-            const room = rooms.get(ws.roomId);
-            if (!room || ws.role !== 'broadcaster') { return; }
-            room.viewers.forEach(v => safeSend(v, { type: 'offer', sdp: msg.sdp }));
+            const session = sessions.get(ws.sessionId);
+            if (!session || ws.role !== 'broadcaster' || !session.viewer) { return; }
+            safeSend(session.viewer, { type: 'offer', sdp: msg.sdp });
             break;
         }
 
         case 'answer': {
-            const room = rooms.get(ws.roomId);
-            if (!room || ws.role !== 'viewer') { return; }
-            safeSend(room.broadcaster, { type: 'answer', sdp: msg.sdp });
+            const session = sessions.get(ws.sessionId);
+            if (!session || ws.role !== 'viewer') { return; }
+            safeSend(session.broadcaster, { type: 'answer', sdp: msg.sdp });
             break;
         }
 
         case 'ice_candidate': {
-            const room = rooms.get(ws.roomId);
-            if (!room) { return; }
-            if (ws.role === 'broadcaster') {
-                room.viewers.forEach(v => safeSend(v, { type: 'ice_candidate', candidate: msg.candidate }));
-            } else {
-                safeSend(room.broadcaster, { type: 'ice_candidate', candidate: msg.candidate });
-            }
+            const session = sessions.get(ws.sessionId);
+            if (!session) { return; }
+            const peer = ws.role === 'broadcaster' ? session.viewer : session.broadcaster;
+            if (peer) safeSend(peer, { type: 'ice_candidate', candidate: msg.candidate });
             break;
         }
 
         default:
-            sendError(ws, `Unknown message type: ${msg.type}`);
+            safeSend(ws, { type: 'error', message: `Unknown type: ${msg.type}` });
     }
 }
 
@@ -248,66 +163,43 @@ function handleMessage(ws, msg) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Fully admit a viewer into the room and notify both sides. */
-function admitViewer(ws, room, roomId) {
-    cancelIdleExpiry(roomId);
-    ws.roomId = roomId;
-    ws.role = 'viewer';
-    room.viewers.push(ws);
-    ws.send(JSON.stringify({ type: 'joined', roomId }));
-    safeSend(room.broadcaster, { type: 'viewer_joined' });
-    broadcastViewerCount(room);
-    console.log(`Viewer joined room: ${roomId} (total: ${room.viewers.length})`);
-}
+function handleDisconnect(ws) {
+    if (!ws.sessionId) { return; }
+    const session = sessions.get(ws.sessionId);
+    if (!session) { return; }
 
-/** Send current viewer count to the broadcaster. */
-function broadcastViewerCount(room) {
-    safeSend(room.broadcaster, { type: 'viewer_count', count: room.viewers.length });
-}
-
-/** Start (or restart) a timer that deletes the room after ROOM_IDLE_MS with no viewers. */
-function scheduleIdleExpiry(roomId) {
-    const room = rooms.get(roomId);
-    if (!room) { return; }
-    cancelIdleExpiry(roomId);
-    room.idleTimer = setTimeout(() => {
-        const r = rooms.get(roomId);
-        if (r && r.viewers.length === 0) {
-            rooms.delete(roomId);
-            console.log(`Room expired (idle): ${roomId}`);
+    if (ws.role === 'broadcaster') {
+        if (session.viewer) {
+            safeSend(session.viewer, { type: 'broadcast_ended' });
         }
-    }, ROOM_IDLE_MS);
-}
-
-function cancelIdleExpiry(roomId) {
-    const room = rooms.get(roomId);
-    if (room && room.idleTimer) {
-        clearTimeout(room.idleTimer);
-        room.idleTimer = null;
+        cancelExpiry(ws.sessionId);
+        sessions.delete(ws.sessionId);
+        console.log(`Session closed: ${ws.sessionId}`);
+    } else if (ws.role === 'viewer') {
+        session.viewer = null;
+        safeSend(session.broadcaster, { type: 'viewer_left' });
+        scheduleExpiry(ws.sessionId);
+        console.log(`Viewer left session: ${ws.sessionId}`);
     }
 }
 
-function handleDisconnect(ws) {
-    if (!ws.roomId) { return; }
-    const room = rooms.get(ws.roomId);
-    if (!room) { return; }
-
-    if (ws.role === 'broadcaster') {
-        room.viewers.forEach(v => safeSend(v, { type: 'broadcast_ended' }));
-        // Also reject all pending viewers.
-        room.pendingViewers.forEach(v => safeSend(v, { type: 'rejected', reason: 'broadcast_ended' }));
-        cancelIdleExpiry(ws.roomId);
-        rooms.delete(ws.roomId);
-        console.log(`Room closed: ${ws.roomId}`);
-    } else if (ws.role === 'pending') {
-        room.pendingViewers.delete(ws.viewerId);
-    } else {
-        room.viewers = room.viewers.filter(v => v !== ws);
-        broadcastViewerCount(room);
-        console.log(`Viewer left room: ${ws.roomId} (remaining: ${room.viewers.length})`);
-        if (room.viewers.length === 0) {
-            scheduleIdleExpiry(ws.roomId);
+function scheduleExpiry(sessionId) {
+    const session = sessions.get(sessionId);
+    if (!session) { return; }
+    cancelExpiry(sessionId);
+    session.expireTimer = setTimeout(() => {
+        if (sessions.has(sessionId)) {
+            sessions.delete(sessionId);
+            console.log(`Session expired: ${sessionId}`);
         }
+    }, SESSION_EXPIRE_MS);
+}
+
+function cancelExpiry(sessionId) {
+    const session = sessions.get(sessionId);
+    if (session && session.expireTimer) {
+        clearTimeout(session.expireTimer);
+        session.expireTimer = null;
     }
 }
 
@@ -315,66 +207,6 @@ function safeSend(ws, data) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(data));
     }
-}
-
-function sendError(ws, message) {
-    safeSend(ws, { type: 'error', message });
-}
-
-// ---------------------------------------------------------------------------
-// Room discovery HTML page
-// ---------------------------------------------------------------------------
-
-function roomDiscoveryPage() {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ScreenShare – Active Rooms</title>
-<style>
-  body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;background:#111;color:#eee}
-  h1{font-size:1.6rem;margin-bottom:4px}
-  p.sub{color:#888;margin-top:0}
-  table{width:100%;border-collapse:collapse;margin-top:24px}
-  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #333}
-  th{color:#aaa;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.75rem}
-  .badge-lock{background:#44334a;color:#d9a0ff}
-  .badge-knock{background:#2a3d44;color:#7dd3fc}
-  #refresh{background:#6200ee;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin-top:20px}
-  #refresh:hover{background:#3700b3}
-</style>
-</head>
-<body>
-<h1>📡 ScreenShare</h1>
-<p class="sub">Active public rooms – refreshes every 10 s</p>
-<table>
-  <thead><tr><th>Room ID</th><th>Viewers</th><th>Options</th></tr></thead>
-  <tbody id="tbody"><tr><td colspan="3" style="color:#666">Loading…</td></tr></tbody>
-</table>
-<button id="refresh" onclick="load()">Refresh now</button>
-<script>
-async function load(){
-  const tbody=document.getElementById('tbody');
-  try{
-    const r=await fetch('/rooms');
-    const list=await r.json();
-    if(!list.length){tbody.innerHTML='<tr><td colspan="3" style="color:#666">No active rooms</td></tr>';return;}
-    tbody.innerHTML=list.map(room=>{
-      const badges=[
-        room.hasPassword?'<span class="badge badge-lock">🔒 Password</span>':'',
-        room.useKnock?'<span class="badge badge-knock">🚪 Knock</span>':'',
-      ].filter(Boolean).join(' ');
-      return '<tr><td><b>'+room.roomId+'</b></td><td>'+room.viewerCount+'</td><td>'+(badges||'—')+'</td></tr>';
-    }).join('');
-  }catch(e){tbody.innerHTML='<tr><td colspan="3" style="color:#f66">Failed to load</td></tr>';}
-}
-load();
-setInterval(load,10000);
-</script>
-</body>
-</html>`;
 }
 
 // ---------------------------------------------------------------------------

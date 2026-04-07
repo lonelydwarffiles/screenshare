@@ -14,10 +14,11 @@ import org.webrtc.SessionDescription
 /**
  * Handles WebSocket-based signaling between broadcaster and viewer.
  *
+ * Strict 1:1 model — one broadcaster, one viewer per session.
+ *
  * Message protocol (JSON):
- *  Outgoing: create | join | offer | answer | ice_candidate | accept | reject
- *  Incoming: created | joined | viewer_joined | viewer_count | viewer_knock |
- *            knock_sent | knock_accepted | knock_rejected |
+ *  Outgoing: create | join | offer | answer | ice_candidate
+ *  Incoming: created | joined | viewer_joined | viewer_left |
  *            offer | answer | ice_candidate | broadcast_ended | rejected | error
  */
 class SignalingClient(
@@ -26,23 +27,15 @@ class SignalingClient(
 ) {
     interface Listener {
         fun onConnected()
-        fun onRoomCreated(roomId: String)
-        fun onRoomJoined(roomId: String)
+        fun onSessionCreated(sessionId: String)
+        fun onSessionJoined(sessionId: String)
         fun onViewerJoined()
-        fun onViewerCount(count: Int)
-        /** A viewer is knocking (broadcaster side). [viewerId] is opaque; [displayName] for display. */
-        fun onViewerKnock(viewerId: String, displayName: String)
-        /** The viewer's knock was sent and is waiting for approval. */
-        fun onKnockSent()
-        /** Broadcaster accepted this viewer's knock. */
-        fun onKnockAccepted()
-        /** Broadcaster rejected this viewer's knock. */
-        fun onKnockRejected()
+        fun onViewerLeft()
         fun onOfferReceived(sdp: SessionDescription)
         fun onAnswerReceived(sdp: SessionDescription)
         fun onIceCandidateReceived(candidate: IceCandidate)
         fun onBroadcastEnded()
-        /** Viewer was turned away (wrong password, room full, or broadcast ended while pending). */
+        /** Viewer was turned away: not_found | wrong_password | session_full */
         fun onRejected(reason: String)
         fun onError(message: String)
     }
@@ -50,14 +43,10 @@ class SignalingClient(
     /** Convenience no-op adapter so subclasses only override what they need. */
     open class ListenerAdapter : Listener {
         override fun onConnected() {}
-        override fun onRoomCreated(roomId: String) {}
-        override fun onRoomJoined(roomId: String) {}
+        override fun onSessionCreated(sessionId: String) {}
+        override fun onSessionJoined(sessionId: String) {}
         override fun onViewerJoined() {}
-        override fun onViewerCount(count: Int) {}
-        override fun onViewerKnock(viewerId: String, displayName: String) {}
-        override fun onKnockSent() {}
-        override fun onKnockAccepted() {}
-        override fun onKnockRejected() {}
+        override fun onViewerLeft() {}
         override fun onOfferReceived(sdp: SessionDescription) {}
         override fun onAnswerReceived(sdp: SessionDescription) {}
         override fun onIceCandidateReceived(candidate: IceCandidate) {}
@@ -96,24 +85,17 @@ class SignalingClient(
         try {
             val json = gson.fromJson(text, JsonObject::class.java)
             when (json.get("type").asString) {
-                "created"        -> listener.onRoomCreated(json.get("roomId").asString)
-                "joined"         -> listener.onRoomJoined(json.get("roomId").asString)
-                "viewer_joined"  -> listener.onViewerJoined()
-                "viewer_count"   -> listener.onViewerCount(json.get("count").asInt)
-                "viewer_knock"   -> listener.onViewerKnock(
-                    json.get("viewerId").asString,
-                    json.get("displayName").asString,
-                )
-                "knock_sent"     -> listener.onKnockSent()
-                "knock_accepted" -> listener.onKnockAccepted()
-                "knock_rejected" -> listener.onKnockRejected()
-                "offer"          -> listener.onOfferReceived(
+                "created"         -> listener.onSessionCreated(json.get("roomId").asString)
+                "joined"          -> listener.onSessionJoined(json.get("roomId").asString)
+                "viewer_joined"   -> listener.onViewerJoined()
+                "viewer_left"     -> listener.onViewerLeft()
+                "offer"           -> listener.onOfferReceived(
                     SessionDescription(SessionDescription.Type.OFFER, json.get("sdp").asString)
                 )
-                "answer"         -> listener.onAnswerReceived(
+                "answer"          -> listener.onAnswerReceived(
                     SessionDescription(SessionDescription.Type.ANSWER, json.get("sdp").asString)
                 )
-                "ice_candidate"  -> {
+                "ice_candidate"   -> {
                     val c = json.getAsJsonObject("candidate")
                     listener.onIceCandidateReceived(
                         IceCandidate(
@@ -136,43 +118,27 @@ class SignalingClient(
     }
 
     /**
-     * Creates a room on the server.
+     * Creates a 1:1 session on the server with a custom slug.
      *
-     * @param password   Optional PIN; viewers must supply the same value.
-     * @param maxViewers Maximum simultaneous viewers (0 = unlimited).
-     * @param useKnock   If true, viewers must knock and be accepted.
-     * @param hidden     If true, the room is excluded from the discovery page.
+     * @param sessionId The session slug chosen by the broadcaster.
+     * @param password  Optional PIN; the viewer must supply the same value.
      */
-    fun createRoom(
-        roomId: String,
-        password: String? = null,
-        maxViewers: Int = 0,
-        useKnock: Boolean = false,
-        hidden: Boolean = false,
-    ) = send(buildMap {
+    fun createSession(sessionId: String, password: String? = null) = send(buildMap {
         put("type", "create")
-        put("roomId", roomId)
+        put("roomId", sessionId)
         if (!password.isNullOrBlank()) put("password", password)
-        if (maxViewers > 0) put("maxViewers", maxViewers)
-        if (useKnock) put("useKnock", true)
-        if (hidden) put("hidden", true)
     })
 
     /**
-     * Joins an existing room.
+     * Joins an existing session by slug.
      *
-     * @param password    PIN to supply for password-protected rooms.
-     * @param displayName Optional display name shown to the broadcaster for knock-to-enter.
+     * @param sessionId The session slug to join.
+     * @param password  PIN for password-protected sessions.
      */
-    fun joinRoom(
-        roomId: String,
-        password: String? = null,
-        displayName: String? = null,
-    ) = send(buildMap {
+    fun joinSession(sessionId: String, password: String? = null) = send(buildMap {
         put("type", "join")
-        put("roomId", roomId)
+        put("roomId", sessionId)
         if (!password.isNullOrBlank()) put("password", password)
-        if (!displayName.isNullOrBlank()) put("displayName", displayName)
     })
 
     fun sendOffer(sdp: SessionDescription) =
@@ -191,12 +157,6 @@ class SignalingClient(
             )
         )
     )
-
-    /** Broadcaster accepts a pending viewer (knock-to-enter flow). */
-    fun acceptViewer(viewerId: String) = send(mapOf("type" to "accept", "viewerId" to viewerId))
-
-    /** Broadcaster rejects a pending viewer (knock-to-enter flow). */
-    fun rejectViewer(viewerId: String) = send(mapOf("type" to "reject", "viewerId" to viewerId))
 
     private fun send(data: Any) {
         webSocket?.send(gson.toJson(data))
