@@ -1,74 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ScreenShare</string>
-    <string name="app_subtitle">Simple end-to-end screen sharing</string>
+    <string name="app_subtitle">Private 1:1 screen sharing</string>
 
-    <!-- Main -->
+    <!-- MainActivity -->
+    <string name="section_broadcast_options">Broadcast options</string>
     <string name="hint_server_url">Signaling server URL</string>
     <string name="default_server_url">ws://10.0.2.2:8080</string>
-    <string name="share_screen">📡  Share My Screen</string>
-    <string name="watch_stream">👁  Watch a Stream</string>
-
-    <!-- Broadcast options (main screen) -->
-    <string name="section_broadcast_options">Broadcast options</string>
+    <string name="hint_session_code">Session code (leave blank for random)</string>
     <string name="hint_quality">Stream quality</string>
-    <string name="hint_broadcast_password">Room password (optional)</string>
-    <string name="hint_max_viewers">Max viewers (0 = unlimited)</string>
-    <string name="hint_max_viewers_zero">0 = unlimited</string>
-    <string name="label_knock_to_enter">Require knock-to-enter approval</string>
+    <string name="hint_session_password">Session password (optional)</string>
+    <string name="hint_restricted_apps">Restricted app packages (optional)</string>
+    <string name="hint_restricted_apps_detail">com.example.app, one per line or comma-separated</string>
     <string name="label_use_mic">Include microphone audio</string>
-
-    <!-- TURN server -->
     <string name="section_turn">TURN server (optional)</string>
-    <string name="hint_turn_url">TURN URI (e.g. turn:host:3478)</string>
+    <string name="hint_turn_url">TURN URL (e.g. turn:host:3478)</string>
     <string name="hint_turn_user">TURN username</string>
     <string name="hint_turn_pass">TURN password</string>
+    <string name="share_screen">📡 Share My Screen</string>
+    <string name="watch_stream">👁 Watch a Stream</string>
 
-    <!-- Broadcast -->
+    <!-- BroadcastActivity -->
     <string name="title_broadcasting">Broadcasting</string>
-    <string name="label_room_id">Room ID</string>
-    <string name="label_viewer_count">Viewers: %d</string>
-    <string name="content_desc_qr">QR code for this room</string>
-    <string name="stop_sharing">Stop Sharing</string>
+    <string name="label_session_code">Session Code</string>
+    <string name="content_desc_qr">QR code for session deep-link</string>
+    <string name="action_blackout_on">🌑 Blackout</string>
+    <string name="action_blackout_off">🌑 Unblackout</string>
+    <string name="action_freeze_on">⏸ Freeze</string>
+    <string name="action_freeze_off">▶ Unfreeze</string>
+    <string name="action_buzz">📳 Buzz</string>
+    <string name="action_countdown">⏱ Countdown</string>
+    <string name="title_pick_countdown">Pick countdown duration</string>
+    <string name="msg_app_violation">Broadcaster opened: %s</string>
+    <string name="stop_sharing">■ Stop Sharing</string>
 
-    <!-- Knock-to-enter -->
-    <string name="title_viewer_knock">Viewer is knocking</string>
-    <string name="msg_viewer_knock">"%s" wants to join your stream. Allow them in?</string>
-    <string name="action_accept">Accept</string>
-    <string name="action_reject">Reject</string>
-
-    <!-- Chat -->
-    <string name="hint_chat_message">Message…</string>
-    <string name="action_send">Send</string>
-
-    <!-- Viewer -->
+    <!-- ViewerActivity -->
     <string name="title_watch_stream">Watch Stream</string>
-    <string name="hint_room_id">Room ID</string>
     <string name="hint_join_password">Password (if required)</string>
     <string name="connect">Connect</string>
+    <string name="action_send">Send</string>
+    <string name="action_lock_broadcaster">🔒 Lock</string>
+    <string name="action_unlock_broadcaster">🔓 Unlock</string>
 
-    <!-- Status -->
+    <!-- Statuses -->
     <string name="status_connecting">Connecting…</string>
-    <string name="status_waiting_for_viewers">Waiting for viewers…</string>
-    <string name="status_viewer_connected">Viewer connected — creating offer…</string>
-    <string name="status_streaming">Streaming ▶</string>
-    <string name="status_waiting_for_stream">Joined! Waiting for stream…</string>
-    <string name="status_broadcast_ended">Broadcast ended.</string>
-    <string name="status_knock_sent">Knock sent — waiting for approval…</string>
-    <string name="status_knock_accepted">Accepted! Waiting for stream…</string>
-    <string name="status_knock_rejected">Your knock was rejected.</string>
+    <string name="status_waiting_for_viewer">Waiting for viewer…</string>
+    <string name="status_viewer_connected">Viewer connected</string>
+    <string name="status_streaming">Streaming ●</string>
+    <string name="status_waiting_for_stream">Waiting for stream…</string>
+    <string name="status_broadcast_ended">Broadcast ended</string>
     <string name="status_reconnecting">Reconnecting in %ds…</string>
 
     <!-- Errors -->
-    <string name="error_invalid_room_id">Please enter a valid room ID.</string>
-    <string name="error_wrong_password">Wrong password.</string>
-    <string name="error_room_full">Room is full.</string>
-    <string name="error_rejected">You were not admitted to this room.</string>
+    <string name="error_invalid_session_code">Please enter a session code</string>
+    <string name="error_wrong_password">Wrong password</string>
+    <string name="error_session_full">Session is full</string>
+    <string name="error_session_not_found">Session not found</string>
+    <string name="error_rejected">Connection rejected</string>
     <string name="error_prefix">Error: %s</string>
 
+    <!-- Lock overlay -->
+    <string name="label_lock_overlay">🔒 Locked by your controller\n\nSit back and enjoy the ride.</string>
+
+    <!-- Accessibility service -->
+    <string name="accessibility_service_description">Monitors app usage for restricted-app enforcement and injects viewer touch gestures for remote control.</string>
+    <string name="title_enable_accessibility">Enable Accessibility Service</string>
+    <string name="msg_enable_accessibility">To enforce restricted apps and allow viewer remote control, enable the ScreenShare accessibility service in Settings → Accessibility.</string>
+    <string name="action_open_settings">Open Settings</string>
+
     <!-- Notification -->
-    <string name="notification_title">Screen Share Active</string>
-    <string name="notification_text">Your screen is being shared</string>
-    <string name="channel_name">Screen Share Service</string>
-    <string name="channel_description">Keeps the screen capture running in the background</string>
+    <string name="notification_title">ScreenShare is active</string>
+    <string name="notification_text">Broadcasting your screen…</string>
+    <string name="channel_name">Screen Share</string>
+    <string name="channel_description">Shows while screen sharing is active</string>
+
+    <!-- Chat -->
+    <string name="hint_chat_message">Message…</string>
 </resources>

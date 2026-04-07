@@ -2,6 +2,7 @@ package com.screenshare
 
 import android.content.Context
 import android.content.Intent
+import org.json.JSONObject
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
 import org.webrtc.DataChannel
@@ -31,8 +32,18 @@ import java.nio.charset.StandardCharsets
  * before [createOffer].
  * For the viewer: tracks are received via [PeerConnection.Observer.onAddTrack].
  *
- * A "chat" [DataChannel] is created by the broadcaster in [initializePeerConnection].
- * Incoming text messages are delivered via [dataChannelListener].
+ * A DataChannel is created by the broadcaster for real-time control messages and chat.
+ * All DataChannel traffic is JSON with a mandatory "type" field:
+ *   chat       { text }               – chat message
+ *   buzz       { pattern }            – vibration command (LongArray as JSON array)
+ *   blackout   { on }                 – blank/restore viewer's screen
+ *   emoji      { value }              – emoji reaction from viewer
+ *   countdown  { seconds }            – countdown timer sync
+ *   freeze     { on }                 – pause/resume live capture on viewer side
+ *   lock       { on }                 – lock broadcaster interaction (viewer → broadcaster)
+ *   app_violation { appName, pkg }    – broadcaster opened a restricted app
+ *
+ * Incoming messages are delivered via [dataChannelListener].
  */
 class WebRTCClient(
     private val context: Context,
@@ -46,9 +57,9 @@ class WebRTCClient(
         HIGH(1920, 1080, 24),
     }
 
-    /** Called on the WebRTC internal thread when a chat message arrives. */
+    /** Called on the WebRTC internal thread when any DataChannel message arrives. */
     fun interface DataChannelListener {
-        fun onMessage(text: String)
+        fun onMessage(json: String)
     }
 
     var dataChannelListener: DataChannelListener? = null
@@ -61,9 +72,10 @@ class WebRTCClient(
     private var localAudioTrack: AudioTrack? = null
     private var screenCapturer: ScreenCapturerAndroid? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var captureQuality: Quality = Quality.MEDIUM
 
-    /** Chat DataChannel – non-null on the broadcaster side after [initializePeerConnection]. */
-    private var chatChannel: DataChannel? = null
+    /** DataChannel – non-null after [initializePeerConnection] on the broadcaster side. */
+    private var dataChannel: DataChannel? = null
 
     init {
         PeerConnectionFactory.initialize(
@@ -105,13 +117,13 @@ class WebRTCClient(
         val pc = factory.createPeerConnection(config, observer) ?: return
         peerConnection = pc
 
-        // Broadcaster creates the chat DataChannel; viewer receives it via onDataChannel.
+        // Broadcaster creates the DataChannel; viewer receives it via onDataChannel.
         val dcInit = DataChannel.Init().apply {
             ordered = true
             negotiated = false
         }
-        chatChannel = pc.createDataChannel(CHAT_CHANNEL_LABEL, dcInit)
-        chatChannel?.registerObserver(makeDcObserver())
+        dataChannel = pc.createDataChannel(DATA_CHANNEL_LABEL, dcInit)
+        dataChannel?.registerObserver(makeDcObserver())
     }
 
     /**
@@ -122,6 +134,7 @@ class WebRTCClient(
         mediaProjectionPermissionResultData: Intent,
         quality: Quality = Quality.MEDIUM,
     ) {
+        captureQuality = quality
         surfaceTextureHelper = SurfaceTextureHelper.create("ScreenCapThread", eglBase.eglBaseContext)
         videoSource = factory.createVideoSource(/* isScreencast= */ true)
 
@@ -142,7 +155,6 @@ class WebRTCClient(
 
     /**
      * Creates a microphone [AudioTrack] and adds it to the peer connection.
-     * Should be called after [initializePeerConnection] and before [createOffer].
      * Requires [android.Manifest.permission.RECORD_AUDIO].
      */
     fun startAudioCapture() {
@@ -184,20 +196,55 @@ class WebRTCClient(
     }
 
     /**
-     * Registers this side's [DataChannel] observer when the viewer receives the channel
+     * Registers this side's DataChannel observer when the viewer receives the channel
      * via [PeerConnection.Observer.onDataChannel].
      */
     fun attachViewerDataChannel(channel: DataChannel) {
-        chatChannel = channel
+        dataChannel = channel
         channel.registerObserver(makeDcObserver())
     }
 
-    /** Send a text chat message over the DataChannel (both sides). */
+    // ---------------------------------------------------------------------------
+    // DataChannel send helpers
+    // ---------------------------------------------------------------------------
+
+    /** Send a chat message (delivered as `{"type":"chat","text":"..."}` over DataChannel). */
     fun sendChatMessage(text: String) {
-        val channel = chatChannel ?: return
-        if (channel.state() != DataChannel.State.OPEN) return
-        val bytes = text.toByteArray(StandardCharsets.UTF_8)
-        channel.send(DataChannel.Buffer(ByteBuffer.wrap(bytes), false))
+        val json = JSONObject().apply {
+            put("type", "chat")
+            put("text", text)
+        }
+        sendRaw(json.toString())
+    }
+
+    /**
+     * Send a control message over the DataChannel.
+     *
+     * @param type    Message type, e.g. `"buzz"`, `"blackout"`, `"lock"`.
+     * @param extras  Optional additional key/value pairs merged into the JSON object.
+     */
+    fun sendControlMessage(type: String, extras: Map<String, Any> = emptyMap()) {
+        val json = JSONObject().apply {
+            put("type", type)
+            extras.forEach { (k, v) -> put(k, v) }
+        }
+        sendRaw(json.toString())
+    }
+
+    /**
+     * Freeze or unfreeze live screen capture without tearing down the peer connection.
+     * The viewer continues to see the last encoded frame while frozen.
+     */
+    fun freezeFrame(on: Boolean) {
+        if (on) {
+            runCatching { screenCapturer?.stopCapture() }
+        } else {
+            runCatching {
+                screenCapturer?.startCapture(
+                    captureQuality.width, captureQuality.height, captureQuality.fps
+                )
+            }
+        }
     }
 
     /** Release all resources. */
@@ -209,12 +256,21 @@ class WebRTCClient(
         localVideoTrack?.dispose()
         audioSource?.dispose()
         localAudioTrack?.dispose()
-        chatChannel?.dispose()
+        dataChannel?.dispose()
         peerConnection?.dispose()
         factory.dispose()
     }
 
     // ---------------------------------------------------------------------------
+    // Private helpers
+    // ---------------------------------------------------------------------------
+
+    private fun sendRaw(json: String) {
+        val channel = dataChannel ?: return
+        if (channel.state() != DataChannel.State.OPEN) return
+        val bytes = json.toByteArray(StandardCharsets.UTF_8)
+        channel.send(DataChannel.Buffer(ByteBuffer.wrap(bytes), false))
+    }
 
     private fun makeDcObserver() = object : DataChannel.Observer {
         override fun onBufferedAmountChange(amount: Long) {}
@@ -223,15 +279,14 @@ class WebRTCClient(
             if (buffer.binary) return
             val bytes = ByteArray(buffer.data.remaining())
             buffer.data.get(bytes)
-            val text = String(bytes, StandardCharsets.UTF_8)
-            dataChannelListener?.onMessage(text)
+            dataChannelListener?.onMessage(String(bytes, StandardCharsets.UTF_8))
         }
     }
 
     companion object {
         private const val VIDEO_TRACK_ID = "screen_video_track"
         private const val AUDIO_TRACK_ID = "screen_audio_track"
-        private const val STREAM_ID = "screen_stream"
-        const val CHAT_CHANNEL_LABEL = "chat"
+        private const val STREAM_ID      = "screen_stream"
+        const val DATA_CHANNEL_LABEL     = "control"
     }
 }

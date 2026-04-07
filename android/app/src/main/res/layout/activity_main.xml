@@ -53,6 +53,22 @@
             android:letterSpacing="0.08"
             android:layout_marginBottom="8dp" />
 
+        <!-- Session code (slug) -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_session_code"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSessionCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:maxLength="32" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- Stream quality -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
@@ -71,44 +87,37 @@
                 android:paddingEnd="12dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Broadcast password -->
+        <!-- Session password -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/hint_broadcast_password"
+            android:hint="@string/hint_session_password"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="12dp">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etBroadcastPassword"
+                android:id="@+id/etPassword"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Max viewers -->
+        <!-- Restricted apps -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/hint_max_viewers"
+            android:hint="@string/hint_restricted_apps"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="12dp">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etMaxViewers"
+                android:id="@+id/etRestrictedApps"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="number"
-                android:hint="@string/hint_max_viewers_zero" />
+                android:inputType="textMultiLine"
+                android:minLines="2"
+                android:hint="@string/hint_restricted_apps_detail" />
         </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Knock-to-enter toggle -->
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switchKnock"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/label_knock_to_enter"
-            android:layout_marginBottom="8dp" />
 
         <!-- Microphone toggle -->
         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -119,7 +128,7 @@
             android:checked="true"
             android:layout_marginBottom="16dp" />
 
-        <!-- TURN server (collapsed by default, shown via expand button) -->
+        <!-- TURN server -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

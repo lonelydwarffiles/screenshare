@@ -6,4 +6,14 @@
         <item>Medium (720p · 15 fps)</item>
         <item>High (1080p · 24 fps)</item>
     </string-array>
+
+    <!-- Pre-defined command cards shown in the viewer controls panel -->
+    <string-array name="command_cards">
+        <item>go slower</item>
+        <item>keep going</item>
+        <item>show more</item>
+        <item>pause</item>
+        <item>yes please 🙏</item>
+        <item>that&#39;s the spot 🎯</item>
+    </string-array>
 </resources>

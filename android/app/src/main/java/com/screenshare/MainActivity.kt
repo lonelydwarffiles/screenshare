@@ -8,10 +8,10 @@ import androidx.appcompat.app.AppCompatActivity
 import com.screenshare.databinding.ActivityMainBinding
 
 /**
- * Entry point.  The user enters a server URL and broadcast options, then chooses to either
- * broadcast their screen or watch an existing broadcast.
+ * Entry point.  The broadcaster enters a custom session code (slug) and optional options,
+ * then taps "Share My Screen".  The viewer taps "Watch a Stream" to open [ViewerActivity].
  *
- * Also handles deep-links (screenshare://room/<id>) to open [ViewerActivity] directly.
+ * Deep-links (`screenshare://session/<code>`) open [ViewerActivity] directly.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -56,16 +56,26 @@ class MainActivity : AppCompatActivity() {
             && data != null
         ) {
             val quality = binding.spinnerQuality.selectedItemPosition
+            val sessionId = binding.etSessionCode.text?.toString()?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: generateFallbackCode()
+
+            // Collect restricted-app package names (comma or newline separated).
+            val restrictedRaw = binding.etRestrictedApps.text?.toString()?.trim() ?: ""
+            val restrictedPkgs = ArrayList(
+                restrictedRaw.split(Regex("[,\\n]+"))
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+            )
+
             val intent = Intent(this, BroadcastActivity::class.java).apply {
                 putExtra(BroadcastActivity.EXTRA_RESULT_CODE, resultCode)
                 putExtra(BroadcastActivity.EXTRA_RESULT_DATA, data)
                 putExtra(BroadcastActivity.EXTRA_SERVER_URL, serverUrl())
+                putExtra(BroadcastActivity.EXTRA_SESSION_ID, sessionId)
                 putExtra(BroadcastActivity.EXTRA_PASSWORD,
-                    binding.etBroadcastPassword.text?.toString()?.trim()?.takeIf { it.isNotEmpty() })
-                putExtra(BroadcastActivity.EXTRA_MAX_VIEWERS,
-                    binding.etMaxViewers.text?.toString()?.trim()?.toIntOrNull() ?: 0)
-                putExtra(BroadcastActivity.EXTRA_USE_KNOCK, binding.switchKnock.isChecked)
-                putExtra(BroadcastActivity.EXTRA_USE_MIC,   binding.switchMic.isChecked)
+                    binding.etPassword.text?.toString()?.trim()?.takeIf { it.isNotEmpty() })
+                putExtra(BroadcastActivity.EXTRA_USE_MIC, binding.switchMic.isChecked)
                 putExtra(BroadcastActivity.EXTRA_QUALITY, quality)
                 putExtra(BroadcastActivity.EXTRA_TURN_URL,
                     binding.etTurnUrl.text?.toString()?.trim()?.takeIf { it.isNotEmpty() })
@@ -73,6 +83,7 @@ class MainActivity : AppCompatActivity() {
                     binding.etTurnUser.text?.toString()?.trim()?.takeIf { it.isNotEmpty() })
                 putExtra(BroadcastActivity.EXTRA_TURN_PASS,
                     binding.etTurnPass.text?.toString()?.trim()?.takeIf { it.isNotEmpty() })
+                putStringArrayListExtra(BroadcastActivity.EXTRA_RESTRICTED_PKGS, restrictedPkgs)
             }
             startActivity(intent)
         }
@@ -85,6 +96,9 @@ class MainActivity : AppCompatActivity() {
     private fun serverUrl(): String =
         binding.etServerUrl.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
             ?: ScreenShareService.DEFAULT_SERVER_URL
+
+    private fun generateFallbackCode(): String =
+        (1000..9999).random().toString()
 
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 1001
