@@ -48,6 +48,11 @@ class ScreenShareService : Service() {
     /**
      * Callback fired when a viewer is knocking (knock-to-enter mode).
      * The activity should show a dialog and call [acceptViewer] or [rejectViewer].
+     *
+     * **Important:** if no listener is registered when this fires (e.g. the activity
+     * is not in the foreground), the viewer is **automatically accepted**.  Hosts who
+     * require explicit approval should ensure the activity remains visible, or set a
+     * persistent listener before starting the broadcast.
      */
     fun interface KnockListener {
         fun onViewerKnock(viewerId: String, displayName: String)

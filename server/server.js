@@ -273,7 +273,6 @@ function scheduleIdleExpiry(roomId) {
     room.idleTimer = setTimeout(() => {
         const r = rooms.get(roomId);
         if (r && r.viewers.length === 0) {
-            r.viewers.forEach(v => safeSend(v, { type: 'broadcast_ended' }));
             rooms.delete(roomId);
             console.log(`Room expired (idle): ${roomId}`);
         }

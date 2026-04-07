@@ -35,7 +35,7 @@ class ViewerActivity : AppCompatActivity() {
     private lateinit var signalingClient: SignalingClient
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var reconnectDelay = RECONNECT_DELAY_MIN_MS
+    private var reconnectDelayMs = RECONNECT_DELAY_MIN_MS
     private var isReconnecting = false
     private var currentRoomId: String = ""
     private var currentServerUrl: String = ""
@@ -228,8 +228,8 @@ class ViewerActivity : AppCompatActivity() {
     private fun scheduleReconnect() {
         if (destroyed || isReconnecting || currentRoomId.isEmpty()) return
         isReconnecting = true
-        val delay = reconnectDelay
-        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_DELAY_MAX_MS)
+        val delay = reconnectDelayMs
+        reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(RECONNECT_DELAY_MAX_MS)
         runOnUiThread {
             binding.tvStatus.visibility = View.VISIBLE
             binding.tvStatus.text = getString(R.string.status_reconnecting, delay / 1000)
@@ -244,7 +244,7 @@ class ViewerActivity : AppCompatActivity() {
     }
 
     private fun resetReconnectDelay() {
-        reconnectDelay = RECONNECT_DELAY_MIN_MS
+        reconnectDelayMs = RECONNECT_DELAY_MIN_MS
     }
 
     // -----------------------------------------------------------------------
