@@ -60,7 +60,7 @@
     <string name="error_prefix">Error: %s</string>
 
     <!-- Lock overlay -->
-    <string name="label_lock_overlay">🔒 Locked by your controller\n\nSit back and enjoy the ride.</string>
+    <string name="label_lock_overlay">🔒 Input locked by your controller</string>
 
     <!-- Accessibility service -->
     <string name="accessibility_service_description">Monitors app usage for restricted-app enforcement and injects viewer touch gestures for remote control.</string>
