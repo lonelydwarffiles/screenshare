@@ -173,8 +173,9 @@ function handleDisconnect(ws) {
             safeSend(session.viewer, { type: 'broadcast_ended' });
         }
         cancelExpiry(ws.sessionId);
-        sessions.delete(ws.sessionId);
-        console.log(`Session closed: ${ws.sessionId}`);
+        // Keep the session alive briefly so the broadcaster can reconnect.
+        scheduleExpiry(ws.sessionId);
+        console.log(`Broadcaster disconnected: ${ws.sessionId}`);
     } else if (ws.role === 'viewer') {
         session.viewer = null;
         safeSend(session.broadcaster, { type: 'viewer_left' });

@@ -6,14 +6,8 @@ class ScreenShareApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // TODO: Replace with your Lovense developer token obtained from
-        //  https://www.lovense.com/user/developer/info
-        // After downloading the Lovense SDK AAR (lovense.aar), place it in android/app/libs/
-        // and set your real token here before building.
-        LovenseManager.getInstance(this).init(LOVENSE_DEV_TOKEN)
-    }
-
-    companion object {
-        private const val LOVENSE_DEV_TOKEN = "YOUR_LOVENSE_DEV_TOKEN"
+        // The token is read from BuildConfig, which is injected from local.properties.
+        // See android/app/build.gradle for how LOVENSE_DEV_TOKEN is defined.
+        LovenseManager.getInstance(this).init(BuildConfig.LOVENSE_DEV_TOKEN)
     }
 }

@@ -46,7 +46,7 @@ class RestrictedAppsAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         val filter = IntentFilter(ACTION_REMOTE_TOUCH)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(remoteTouchReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(remoteTouchReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(remoteTouchReceiver, filter)
         }

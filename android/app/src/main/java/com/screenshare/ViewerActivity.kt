@@ -360,8 +360,8 @@ class ViewerActivity : AppCompatActivity() {
                     val nx = event.x / view.width.coerceAtLeast(1)
                     val ny = event.y / view.height.coerceAtLeast(1)
                     val durationMs = System.currentTimeMillis() - touchStartTimeMs
-                    val dx = Math.abs(nx - touchStartX)
-                    val dy = Math.abs(ny - touchStartY)
+                    val dx = kotlin.math.abs(nx - touchStartX)
+                    val dy = kotlin.math.abs(ny - touchStartY)
 
                     if (durationMs < TAP_MAX_DURATION_MS && dx < TAP_MAX_DRIFT && dy < TAP_MAX_DRIFT) {
                         // Short, stationary — treat as a tap.

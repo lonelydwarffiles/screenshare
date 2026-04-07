@@ -92,7 +92,7 @@ class ScreenShareService : Service() {
 
         val filter = IntentFilter(RestrictedAppsAccessibilityService.ACTION_APP_VIOLATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(violationReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(violationReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(violationReceiver, filter)
         }
