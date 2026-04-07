@@ -3,22 +3,23 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp">
+    android:gravity="center_horizontal"
+    android:padding="24dp">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/title_broadcasting"
-        android:textSize="24sp"
+        android:textSize="22sp"
         android:textStyle="bold"
-        android:layout_marginBottom="32dp" />
+        android:layout_marginBottom="16dp" />
 
+    <!-- Room ID -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/label_room_id"
-        android:textSize="14sp"
+        android:textSize="12sp"
         android:alpha="0.7"
         android:layout_marginBottom="4dp" />
 
@@ -26,18 +27,76 @@
         android:id="@+id/tvRoomId"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="56sp"
+        android:textSize="52sp"
         android:textStyle="bold"
         android:letterSpacing="0.1"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="8dp" />
 
+    <!-- QR code -->
+    <ImageView
+        android:id="@+id/ivQrCode"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:contentDescription="@string/content_desc_qr"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Viewer count -->
+    <TextView
+        android:id="@+id/tvViewerCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:alpha="0.8"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Status -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/status_connecting"
-        android:textSize="14sp"
-        android:layout_marginBottom="48dp" />
+        android:textSize="13sp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Chat panel -->
+    <ScrollView
+        android:id="@+id/scrollChat"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#10000000"
+        android:padding="8dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvChatLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp" />
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etChatInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/hint_chat_message"
+            android:inputType="text"
+            android:imeOptions="actionSend"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnSendChat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/action_send" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnStop"

@@ -9,21 +9,61 @@
     <string name="share_screen">📡  Share My Screen</string>
     <string name="watch_stream">👁  Watch a Stream</string>
 
+    <!-- Broadcast options (main screen) -->
+    <string name="section_broadcast_options">Broadcast options</string>
+    <string name="hint_quality">Stream quality</string>
+    <string name="hint_broadcast_password">Room password (optional)</string>
+    <string name="hint_max_viewers">Max viewers (0 = unlimited)</string>
+    <string name="hint_max_viewers_zero">0 = unlimited</string>
+    <string name="label_knock_to_enter">Require knock-to-enter approval</string>
+    <string name="label_use_mic">Include microphone audio</string>
+
+    <!-- TURN server -->
+    <string name="section_turn">TURN server (optional)</string>
+    <string name="hint_turn_url">TURN URI (e.g. turn:host:3478)</string>
+    <string name="hint_turn_user">TURN username</string>
+    <string name="hint_turn_pass">TURN password</string>
+
     <!-- Broadcast -->
     <string name="title_broadcasting">Broadcasting</string>
     <string name="label_room_id">Room ID</string>
+    <string name="label_viewer_count">Viewers: %d</string>
+    <string name="content_desc_qr">QR code for this room</string>
     <string name="stop_sharing">Stop Sharing</string>
+
+    <!-- Knock-to-enter -->
+    <string name="title_viewer_knock">Viewer is knocking</string>
+    <string name="msg_viewer_knock">"%s" wants to join your stream. Allow them in?</string>
+    <string name="action_accept">Accept</string>
+    <string name="action_reject">Reject</string>
+
+    <!-- Chat -->
+    <string name="hint_chat_message">Message…</string>
+    <string name="action_send">Send</string>
 
     <!-- Viewer -->
     <string name="title_watch_stream">Watch Stream</string>
-    <string name="hint_room_id">4-digit Room ID</string>
+    <string name="hint_room_id">Room ID</string>
+    <string name="hint_join_password">Password (if required)</string>
     <string name="connect">Connect</string>
 
     <!-- Status -->
     <string name="status_connecting">Connecting…</string>
+    <string name="status_waiting_for_viewers">Waiting for viewers…</string>
+    <string name="status_viewer_connected">Viewer connected — creating offer…</string>
+    <string name="status_streaming">Streaming ▶</string>
     <string name="status_waiting_for_stream">Joined! Waiting for stream…</string>
     <string name="status_broadcast_ended">Broadcast ended.</string>
-    <string name="error_invalid_room_id">Please enter a 4-digit room ID.</string>
+    <string name="status_knock_sent">Knock sent — waiting for approval…</string>
+    <string name="status_knock_accepted">Accepted! Waiting for stream…</string>
+    <string name="status_knock_rejected">Your knock was rejected.</string>
+    <string name="status_reconnecting">Reconnecting in %ds…</string>
+
+    <!-- Errors -->
+    <string name="error_invalid_room_id">Please enter a valid room ID.</string>
+    <string name="error_wrong_password">Wrong password.</string>
+    <string name="error_room_full">Room is full.</string>
+    <string name="error_rejected">You were not admitted to this room.</string>
     <string name="error_prefix">Error: %s</string>
 
     <!-- Notification -->
