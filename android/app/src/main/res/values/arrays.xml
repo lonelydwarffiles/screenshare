@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stream quality preset labels — order must match WebRTCClient.Quality enum ordinals -->
+    <string-array name="quality_labels">
+        <item>Low (480p · 10 fps)</item>
+        <item>Medium (720p · 15 fps)</item>
+        <item>High (1080p · 24 fps)</item>
+    </string-array>
+
+    <!-- Pre-defined command cards shown in the viewer controls panel -->
+    <string-array name="command_cards">
+        <item>go slower</item>
+        <item>keep going</item>
+        <item>show more</item>
+        <item>pause</item>
+        <item>yes please 🙏</item>
+        <item>that\'s the spot 🎯</item>
+    </string-array>
+</resources>

@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black">
+
+    <!-- Remote video — hidden until stream arrives -->
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/svRemote"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Blackout overlay — covers video on broadcaster command -->
+    <View
+        android:id="@+id/viewBlackout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/black"
+        android:visibility="gone" />
+
+    <!-- Countdown overlay -->
+    <TextView
+        android:id="@+id/tvCountdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textSize="96sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:alpha="0.9"
+        android:visibility="gone" />
+
+    <!-- Interactive controls overlay — visible while watching the stream -->
+    <LinearLayout
+        android:id="@+id/layoutControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:background="@color/chat_overlay_bg"
+        android:visibility="gone">
+
+        <!-- Emoji reactions row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btnEmoji1"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="❤️"
+                android:textSize="20sp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btnEmoji2"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="🔥"
+                android:textSize="20sp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btnEmoji3"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="👀"
+                android:textSize="20sp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btnEmoji4"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="🥵"
+                android:textSize="20sp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btnEmoji5"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="😈"
+                android:textSize="20sp"
+                android:padding="0dp" />
+
+        </LinearLayout>
+
+        <!-- Buzz + Lock row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btnBuzz"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/action_buzz"
+                android:textColor="@color/white"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btnLock"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/action_lock_broadcaster"
+                android:textColor="@color/white"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
+
+        <!-- Command cards (populated programmatically) -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp">
+
+            <LinearLayout
+                android:id="@+id/layoutCommandCards"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="4dp" />
+
+        </HorizontalScrollView>
+
+        <!-- Chat log -->
+        <ScrollView
+            android:id="@+id/scrollChat"
+            android:layout_width="match_parent"
+            android:layout_height="80dp">
+
+            <TextView
+                android:id="@+id/tvChatLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/white" />
+        </ScrollView>
+
+        <!-- Chat input -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etChatInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/hint_chat_message"
+                android:inputType="text"
+                android:imeOptions="actionSend"
+                android:textColor="@color/white"
+                android:textColorHint="#88FFFFFF"
+                android:backgroundTint="@color/white"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/btnSendChat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/action_send"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:textColor="@color/white" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Connection form -->
+    <ScrollView
+        android:id="@+id/layoutConnect"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:minHeight="@dimen/min_screen_height"
+            android:padding="32dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_watch_stream"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:layout_marginBottom="32dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/hint_session_code"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_marginBottom="12dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etSessionCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:maxLength="32" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Password for password-protected sessions -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/hint_join_password"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_marginBottom="16dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/btnConnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/connect" />
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:layout_marginTop="16dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</FrameLayout>

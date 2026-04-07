@@ -1,0 +1,65 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+// Read the Lovense developer token from local.properties (not committed to git).
+// Add this line to android/local.properties:
+//   lovense.dev.token=YOUR_TOKEN_HERE
+// Get your token at: https://www.lovense.com/user/developer/info
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localProps.load(new FileInputStream(localPropsFile))
+}
+
+android {
+    namespace 'com.screenshare'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.screenshare"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        buildConfigField "String", "LOVENSE_DEV_TOKEN",
+            "\"${localProps.getProperty('lovense.dev.token', '')}\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+}
+
+dependencies {
+    // Local AARs — place lovense.aar in android/app/libs/ after downloading from
+    // https://developer.lovense.com/#android-sdk
+    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+
+    implementation 'org.webrtc:google-webrtc:1.0.32006'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'com.google.zxing:core:3.5.3'
+}

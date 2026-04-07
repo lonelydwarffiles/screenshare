@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Minimum height for the viewer connect form so it centres even on tall screens -->
+    <dimen name="min_screen_height">400dp</dimen>
+    <!-- Size of floating emoji reaction views in BroadcastActivity -->
+    <dimen name="emoji_size">48dp</dimen>
+</resources>

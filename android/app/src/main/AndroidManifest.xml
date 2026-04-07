@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network & screen capture -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Draw-over-other-apps permission (lock overlay via WindowManager) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Bluetooth — required for Lovense SDK toy discovery (BLE) -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <application
+        android:name=".ScreenShareApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ScreenShare">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".BroadcastActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ViewerActivity"
+            android:exported="true">
+            <!-- Deep-link: screenshare://session/<code> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="screenshare" android:host="session" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".ScreenShareService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
+        <!-- Lovense SDK BLE background service (from lovense.aar) -->
+        <service
+            android:name="com.xtremeprog.sdk.ble.BleService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!--
+            Accessibility service used for:
+              1. Restricted-app enforcement (navigates back when a blocked app opens)
+              2. Viewer remote control (injects gestures via dispatchGesture)
+
+            canPerformGestures="true" is declared in accessibility_service_config.xml.
+        -->
+        <service
+            android:name=".RestrictedAppsAccessibilityService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+    </application>
+
+</manifest>
