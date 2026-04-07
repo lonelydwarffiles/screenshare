@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ScreenShare</string>
+    <string name="app_subtitle">Simple end-to-end screen sharing</string>
+
+    <!-- Main -->
+    <string name="hint_server_url">Signaling server URL</string>
+    <string name="default_server_url">ws://10.0.2.2:8080</string>
+    <string name="share_screen">📡  Share My Screen</string>
+    <string name="watch_stream">👁  Watch a Stream</string>
+
+    <!-- Broadcast -->
+    <string name="title_broadcasting">Broadcasting</string>
+    <string name="label_room_id">Room ID</string>
+    <string name="stop_sharing">Stop Sharing</string>
+
+    <!-- Viewer -->
+    <string name="title_watch_stream">Watch Stream</string>
+    <string name="hint_room_id">4-digit Room ID</string>
+    <string name="connect">Connect</string>
+
+    <!-- Status -->
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_waiting_for_stream">Joined! Waiting for stream…</string>
+    <string name="status_broadcast_ended">Broadcast ended.</string>
+    <string name="error_invalid_room_id">Please enter a 4-digit room ID.</string>
+    <string name="error_prefix">Error: %s</string>
+
+    <!-- Notification -->
+    <string name="notification_title">Screen Share Active</string>
+    <string name="notification_text">Your screen is being shared</string>
+    <string name="channel_name">Screen Share Service</string>
+    <string name="channel_description">Keeps the screen capture running in the background</string>
+</resources>
