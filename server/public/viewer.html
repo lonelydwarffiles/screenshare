@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScreenShare – Browser Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d0d0d;
+      color: #e8e8e8;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Connect panel                                                        */
+    /* ------------------------------------------------------------------ */
+
+    #connect-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 16px;
+      padding: 24px;
+    }
+
+    h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+    h1 span { color: #7c4dff; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card label {
+      font-size: 0.8rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: -6px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      background: #252525;
+      border: 1px solid #444;
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 1rem;
+      padding: 11px 14px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #7c4dff; }
+
+    .btn {
+      background: #7c4dff;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 11px 18px;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:hover  { background: #6a3de8; }
+    .btn:active { transform: scale(0.97); }
+    .btn.secondary { background: #252525; border: 1px solid #444; }
+    .btn.secondary:hover { background: #333; }
+    .btn.active { background: #1a4a27; border: 1px solid #4caf50; color: #81c784; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    #status-connect {
+      color: #aaa;
+      font-size: 0.88rem;
+      text-align: center;
+      min-height: 1.2em;
+    }
+    #status-connect.error { color: #ef5350; }
+
+    /* ------------------------------------------------------------------ */
+    /* Stream panel                                                         */
+    /* ------------------------------------------------------------------ */
+
+    #stream-panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ---- Video column ---- */
+
+    #video-col {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      cursor: crosshair;
+      min-width: 0;
+    }
+
+    #remote-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    #blackout-overlay {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      display: none;
+      z-index: 10;
+    }
+
+    #countdown-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(5rem, 20vw, 14rem);
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 60px rgba(124, 77, 255, 0.9);
+      z-index: 11;
+      pointer-events: none;
+    }
+
+    #mute-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      z-index: 20;
+      transition: background 0.15s;
+    }
+    #mute-btn:hover { background: rgba(0,0,0,0.8); }
+
+    /* ---- Sidebar ---- */
+
+    #sidebar {
+      width: 270px;
+      min-width: 270px;
+      background: #121212;
+      border-left: 1px solid #262626;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid #262626;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    #sidebar-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #ccc;
+      flex: 1;
+    }
+
+    .section {
+      padding: 10px 14px;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+
+    .section-label {
+      color: #666;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    /* Emoji row */
+    #emoji-row {
+      display: flex;
+      gap: 5px;
+    }
+
+    .emoji-btn {
+      flex: 1;
+      background: #1e1e1e;
+      border: 1px solid #303030;
+      border-radius: 8px;
+      font-size: 1.25rem;
+      line-height: 1;
+      padding: 7px 2px;
+      cursor: pointer;
+      transition: background 0.12s, transform 0.1s;
+    }
+    .emoji-btn:hover  { background: #2a2a2a; transform: scale(1.1); }
+    .emoji-btn:active { transform: scale(0.93); }
+
+    /* Action buttons */
+    #action-row {
+      display: flex;
+      gap: 8px;
+    }
+    #action-row .btn { flex: 1; font-size: 0.85rem; padding: 9px 8px; }
+
+    /* Chat section */
+    #chat-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 10px 14px 0;
+    }
+
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      margin-bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+
+    .chat-entry {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: #bbb;
+      word-break: break-word;
+    }
+
+    #chat-input-row {
+      display: flex;
+      gap: 6px;
+      padding: 0 0 10px;
+      flex-shrink: 0;
+    }
+
+    #chat-input-row input {
+      flex: 1;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 7px;
+      color: #e8e8e8;
+      font-size: 0.85rem;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #chat-input-row input:focus { border-color: #7c4dff; }
+
+    #chat-input-row .btn { padding: 8px 12px; font-size: 0.82rem; }
+
+    /* Status bar */
+    #status-bar {
+      background: #0a0a0a;
+      border-top: 1px solid #1e1e1e;
+      padding: 5px 14px;
+      font-size: 0.75rem;
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    #stream-status { color: #777; }
+    #dc-indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+    }
+    #dc-indicator.open   { background: #4caf50; }
+    #dc-indicator.closed { background: #ef5350; }
+
+    /* ------------------------------------------------------------------ */
+    /* Responsive                                                           */
+    /* ------------------------------------------------------------------ */
+
+    @media (max-width: 640px) {
+      #stream-panel  { flex-direction: column; }
+      #sidebar {
+        width: 100%;
+        min-width: 0;
+        border-left: none;
+        border-top: 1px solid #262626;
+        max-height: 52vh;
+      }
+      #video-col { min-height: 34vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ====================================================================== -->
+<!-- Connect panel                                                           -->
+<!-- ====================================================================== -->
+<div id="connect-panel">
+  <h1>Screen<span>Share</span></h1>
+  <div class="card">
+    <label for="room-input">Room ID</label>
+    <input id="room-input" type="text" placeholder="e.g. 1234"
+           autocomplete="off" spellcheck="false" inputmode="numeric">
+    <label for="password-input">Password</label>
+    <input id="password-input" type="password" placeholder="(optional)">
+    <button class="btn" id="connect-btn">Connect</button>
+    <div id="status-connect"></div>
+  </div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- Stream panel                                                            -->
+<!-- ====================================================================== -->
+<div id="stream-panel">
+
+  <!-- Video + overlays -->
+  <div id="video-col">
+    <video id="remote-video" autoplay playsinline muted></video>
+    <div id="blackout-overlay"></div>
+    <div id="countdown-overlay"></div>
+    <button id="mute-btn" title="Toggle audio mute">🔇 Unmute</button>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span id="sidebar-title">Controller</span>
+      <button class="btn secondary" id="disconnect-btn"
+              style="padding:4px 11px;font-size:0.78rem;">✕</button>
+    </div>
+
+    <!-- Emoji reactions -->
+    <div class="section">
+      <div class="section-label">Reactions</div>
+      <div id="emoji-row">
+        <button class="emoji-btn" data-emoji="❤️"  title="Heart">❤️</button>
+        <button class="emoji-btn" data-emoji="🔥"  title="Fire">🔥</button>
+        <button class="emoji-btn" data-emoji="👀"  title="Eyes">👀</button>
+        <button class="emoji-btn" data-emoji="🥵"  title="Hot">🥵</button>
+        <button class="emoji-btn" data-emoji="😈"  title="Devil">😈</button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="section">
+      <div class="section-label">Actions</div>
+      <div id="action-row">
+        <button class="btn secondary" id="buzz-btn"  title="Vibrate broadcaster's device">📳 Buzz</button>
+        <button class="btn secondary" id="lock-btn"  title="Lock/unlock broadcaster input">🔒 Lock</button>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat-section">
+      <div class="section-label">Chat</div>
+      <div id="chat-log"></div>
+      <div id="chat-input-row">
+        <input id="chat-input" type="text" placeholder="Message…" autocomplete="off">
+        <button class="btn" id="send-chat-btn">Send</button>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar">
+      <span id="stream-status">–</span>
+      <span id="dc-indicator" title="DataChannel"></span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====================================================================== -->
+<!-- App logic                                                               -->
+<!-- ====================================================================== -->
+<script>
+'use strict';
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let ws            = null;
+let pc            = null;
+let dataChannel   = null;
+let isLocked      = false;
+let reconnectTimer      = null;
+let reconnectDelayMs    = 2000;
+let currentRoom         = '';
+let currentPassword     = '';
+let touchStartX         = 0;
+let touchStartY         = 0;
+let touchStartTime      = 0;
+let touchCaptureAttached = false;
+let countdownInterval   = null;
+let isDestroyed         = false;
+
+// ---------------------------------------------------------------------------
+// DOM helpers
+// ---------------------------------------------------------------------------
+
+function $(id) { return document.getElementById(id); }
+
+function setConnectStatus(msg, isError) {
+  const el = $('status-connect');
+  el.textContent  = msg;
+  el.className    = isError ? 'error' : '';
+}
+
+function setStreamStatus(msg) {
+  $('stream-status').textContent = msg;
+}
+
+function setDcOpen(isOpen) {
+  const el = $('dc-indicator');
+  el.className = isOpen ? 'open' : 'closed';
+  el.title     = 'DataChannel: ' + (isOpen ? 'open' : 'closed');
+}
+
+// ---------------------------------------------------------------------------
+// URL parameter pre-fill & auto-connect
+// ---------------------------------------------------------------------------
+
+(function initFromUrl() {
+  const params    = new URLSearchParams(window.location.search);
+  const hashRoom  = window.location.hash.slice(1);
+  const roomVal   = hashRoom || params.get('room') || '';
+  const passVal   = params.get('password') || '';
+
+  if (roomVal) $('room-input').value    = roomVal;
+  if (passVal) $('password-input').value = passVal;
+
+  if (roomVal) {
+    currentRoom     = roomVal;
+    currentPassword = passVal;
+    // Defer so the DOM is ready and the connect panel is visible briefly.
+    setTimeout(doConnect, 120);
+  }
+}());
+
+// ---------------------------------------------------------------------------
+// WebSocket URL — derived from the page origin
+// ---------------------------------------------------------------------------
+
+function getWsUrl() {
+  const loc   = window.location;
+  const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+  return proto + '//' + loc.host;
+}
+
+// ---------------------------------------------------------------------------
+// Connect / disconnect
+// ---------------------------------------------------------------------------
+
+function connect() {
+  currentRoom     = $('room-input').value.trim();
+  currentPassword = $('password-input').value.trim();
+  if (!currentRoom) {
+    setConnectStatus('Please enter a room ID', true);
+    return;
+  }
+  doConnect();
+}
+
+function doConnect() {
+  cleanup();
+  setConnectStatus('Connecting…');
+
+  let wsUrl;
+  try {
+    wsUrl = getWsUrl();
+    ws    = new WebSocket(wsUrl);
+  } catch (e) {
+    setConnectStatus('Cannot open WebSocket to ' + wsUrl, true);
+    return;
+  }
+
+  ws.onopen = function () {
+    const msg = { type: 'join', roomId: currentRoom };
+    if (currentPassword) msg.password = currentPassword;
+    ws.send(JSON.stringify(msg));
+  };
+
+  ws.onmessage = function (e) {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    handleSignaling(msg);
+  };
+
+  ws.onerror = function () {
+    setConnectStatus('WebSocket error — check the server URL', true);
+  };
+
+  ws.onclose = function () {
+    if (!isDestroyed) {
+      setStreamStatus('Disconnected');
+      scheduleReconnect();
+    }
+  };
+}
+
+function disconnect() {
+  isDestroyed = true;
+  cleanup();
+  showConnectPanel('Disconnected');
+  isDestroyed = false;
+}
+
+// ---------------------------------------------------------------------------
+// Signaling
+// ---------------------------------------------------------------------------
+
+function handleSignaling(msg) {
+  switch (msg.type) {
+
+    case 'joined':
+      resetReconnectDelay();
+      setConnectStatus('');
+      setStreamStatus('Waiting for stream…');
+      break;
+
+    case 'offer':
+      handleOffer(msg.sdp);
+      break;
+
+    case 'ice_candidate':
+      if (pc && msg.candidate) {
+        pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(function () {});
+      }
+      break;
+
+    case 'broadcast_ended':
+      showConnectPanel('Broadcast ended');
+      break;
+
+    case 'rejected': {
+      const reasons = {
+        not_found:      'Session not found',
+        wrong_password: 'Wrong password',
+        session_full:   'Session is full',
+      };
+      showConnectPanel(reasons[msg.reason] || ('Rejected: ' + msg.reason));
+      break;
+    }
+
+    case 'error':
+      setConnectStatus('Server: ' + msg.message, true);
+      break;
+  }
+}
+
+function handleOffer(sdp) {
+  try {
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+
+    pc.ontrack = function (e) {
+      const video = $('remote-video');
+      if (!video.srcObject) {
+        video.srcObject = e.streams[0] || new MediaStream([e.track]);
+      } else if (!video.srcObject.getTracks().includes(e.track)) {
+        video.srcObject.addTrack(e.track);
+      }
+      if (e.track.kind === 'video') showStreamPanel();
+    };
+
+    pc.ondatachannel = function (e) {
+      attachDataChannel(e.channel);
+    };
+
+    pc.onicecandidate = function (e) {
+      if (!e.candidate || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: 'ice_candidate',
+        candidate: {
+          sdpMid:        e.candidate.sdpMid,
+          sdpMLineIndex: e.candidate.sdpMLineIndex,
+          candidate:     e.candidate.candidate,
+        },
+      }));
+    };
+
+    pc.oniceconnectionstatechange = function () {
+      const state = pc ? pc.iceConnectionState : '';
+      if (state === 'connected' || state === 'completed') {
+        setStreamStatus('Streaming');
+      } else if (state === 'disconnected' || state === 'failed') {
+        setStreamStatus('ICE ' + state);
+        scheduleReconnect();
+      }
+    };
+
+    pc.setRemoteDescription({ type: 'offer', sdp: sdp })
+      .then(function () { return pc.createAnswer(); })
+      .then(function (answer) {
+        return pc.setLocalDescription(answer).then(function () { return answer; });
+      })
+      .then(function (answer) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+        }
+      })
+      .catch(function (err) {
+        setStreamStatus('WebRTC error: ' + err.message);
+      });
+
+  } catch (err) {
+    setStreamStatus('WebRTC setup failed: ' + err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DataChannel
+// ---------------------------------------------------------------------------
+
+function attachDataChannel(channel) {
+  dataChannel = channel;
+
+  channel.onopen = function () {
+    setDcOpen(true);
+  };
+  channel.onclose = function () {
+    setDcOpen(false);
+  };
+  channel.onmessage = function (e) {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    handleDataMessage(msg);
+  };
+}
+
+function handleDataMessage(msg) {
+  switch (msg.type) {
+
+    case 'chat':
+      appendChat('📡 ' + msg.text);
+      break;
+
+    case 'blackout':
+      $('blackout-overlay').style.display = msg.on ? 'block' : 'none';
+      break;
+
+    case 'countdown':
+      startCountdown(msg.seconds || 10);
+      break;
+
+    case 'buzz':
+      if (navigator.vibrate) navigator.vibrate(msg.pattern || [0, 80, 50, 80]);
+      break;
+
+    case 'freeze':
+      // The broadcaster stopped capturing; the video frame naturally freezes.
+      break;
+
+    case 'app_violation':
+      appendChat('⚠️ Broadcaster opened: ' + (msg.appName || 'an app'));
+      break;
+  }
+}
+
+/**
+ * Send a control message over the DataChannel.
+ * @param {string} type
+ * @param {Object} [extras]
+ */
+function sendControl(type, extras) {
+  if (!dataChannel || dataChannel.readyState !== 'open') return;
+  const payload = Object.assign({ type: type }, extras || {});
+  dataChannel.send(JSON.stringify(payload));
+}
+
+// ---------------------------------------------------------------------------
+// Remote-touch capture (tap + swipe → broadcaster's AccessibilityService)
+// ---------------------------------------------------------------------------
+
+function attachTouchCapture() {
+  if (touchCaptureAttached) return;
+  touchCaptureAttached = true;
+
+  const video = $('remote-video');
+
+  // ---- Mouse ----
+  video.addEventListener('mousedown', function (e) {
+    const r      = video.getBoundingClientRect();
+    touchStartX  = (e.clientX - r.left) / Math.max(r.width,  1);
+    touchStartY  = (e.clientY - r.top)  / Math.max(r.height, 1);
+    touchStartTime = Date.now();
+  });
+
+  video.addEventListener('mouseup', function (e) {
+    const r  = video.getBoundingClientRect();
+    const nx = (e.clientX - r.left) / Math.max(r.width,  1);
+    const ny = (e.clientY - r.top)  / Math.max(r.height, 1);
+    emitTouch(nx, ny);
+  });
+
+  // ---- Touch (mobile viewer) ----
+  video.addEventListener('touchstart', function (e) {
+    const t      = e.touches[0];
+    const r      = video.getBoundingClientRect();
+    touchStartX  = (t.clientX - r.left) / Math.max(r.width,  1);
+    touchStartY  = (t.clientY - r.top)  / Math.max(r.height, 1);
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  video.addEventListener('touchend', function (e) {
+    const t  = e.changedTouches[0];
+    const r  = video.getBoundingClientRect();
+    const nx = (t.clientX - r.left) / Math.max(r.width,  1);
+    const ny = (t.clientY - r.top)  / Math.max(r.height, 1);
+    emitTouch(nx, ny);
+  }, { passive: true });
+}
+
+function emitTouch(nx, ny) {
+  const duration = Date.now() - touchStartTime;
+  const dx       = Math.abs(nx - touchStartX);
+  const dy       = Math.abs(ny - touchStartY);
+
+  if (duration < 400 && dx < 0.05 && dy < 0.05) {
+    sendControl('remote_touch', { action: 'tap', x: nx, y: ny });
+  } else {
+    sendControl('remote_touch', {
+      action:   'swipe',
+      x1:       touchStartX,
+      y1:       touchStartY,
+      x2:       nx,
+      y2:       ny,
+      duration: duration,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Countdown overlay
+// ---------------------------------------------------------------------------
+
+function startCountdown(seconds) {
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  const el     = $('countdown-overlay');
+  el.style.display = 'flex';
+  let remaining    = seconds;
+  el.textContent   = remaining;
+
+  countdownInterval = setInterval(function () {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      el.textContent = '✨';
+      // Reveal — lift blackout on countdown end (mirrors Android behaviour).
+      $('blackout-overlay').style.display = 'none';
+      setTimeout(function () { el.style.display = 'none'; }, 1500);
+    } else {
+      el.textContent = remaining;
+    }
+  }, 1000);
+}
+
+// ---------------------------------------------------------------------------
+// Chat helpers
+// ---------------------------------------------------------------------------
+
+function sendChat() {
+  const input = $('chat-input');
+  const text  = input.value.trim();
+  if (!text) return;
+  sendControl('chat', { text: text });
+  appendChat('👁 ' + text);
+  input.value = '';
+}
+
+function appendChat(line) {
+  const log = $('chat-log');
+  const el  = document.createElement('div');
+  el.className   = 'chat-entry';
+  el.textContent = line;
+  log.appendChild(el);
+  log.scrollTop  = log.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------
+// Panel switching
+// ---------------------------------------------------------------------------
+
+function showStreamPanel() {
+  $('connect-panel').style.display = 'none';
+  $('stream-panel').style.display  = 'flex';
+  attachTouchCapture();
+}
+
+function showConnectPanel(statusText) {
+  $('stream-panel').style.display  = 'none';
+  $('connect-panel').style.display = 'flex';
+  if (statusText) setConnectStatus(statusText, false);
+  // Reset lock state
+  isLocked = false;
+  updateLockBtn();
+}
+
+// ---------------------------------------------------------------------------
+// Lock button
+// ---------------------------------------------------------------------------
+
+function updateLockBtn() {
+  const btn      = $('lock-btn');
+  btn.textContent = isLocked ? '🔓 Unlock' : '🔒 Lock';
+  btn.classList.toggle('active', isLocked);
+}
+
+// ---------------------------------------------------------------------------
+// Reconnect with exponential back-off
+// ---------------------------------------------------------------------------
+
+function scheduleReconnect() {
+  if (reconnectTimer || isDestroyed) return;
+  const delay      = reconnectDelayMs;
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30000);
+  setStreamStatus('Reconnecting in ' + Math.round(delay / 1000) + 's…');
+  reconnectTimer = setTimeout(function () {
+    reconnectTimer = null;
+    if (!isDestroyed) doConnect();
+  }, delay);
+}
+
+function resetReconnectDelay() {
+  reconnectDelayMs = 2000;
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup
+// ---------------------------------------------------------------------------
+
+function cleanup() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  if (pc) {
+    try { pc.close(); } catch (_) {}
+    pc = null;
+  }
+  dataChannel = null;
+  setDcOpen(false);
+
+  if (ws) {
+    // Null out the onclose handler before closing so the close event doesn't
+    // trigger an unwanted reconnect when we are intentionally tearing down.
+    ws.onclose = null;
+    try { ws.close(1000, 'Goodbye'); } catch (_) {}
+    ws = null;
+  }
+
+  const video = $('remote-video');
+  video.srcObject = null;
+
+  $('blackout-overlay').style.display  = 'none';
+  $('countdown-overlay').style.display = 'none';
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+
+  touchCaptureAttached = false;
+}
+
+// ---------------------------------------------------------------------------
+// Event wiring
+// ---------------------------------------------------------------------------
+
+$('connect-btn').addEventListener('click', connect);
+
+$('room-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') connect();
+});
+$('password-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') connect();
+});
+
+$('disconnect-btn').addEventListener('click', disconnect);
+
+document.querySelectorAll('.emoji-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    sendControl('emoji', { value: btn.dataset.emoji });
+  });
+});
+
+$('buzz-btn').addEventListener('click', function () {
+  sendControl('buzz', { pattern: [0, 80, 50, 80] });
+});
+
+$('lock-btn').addEventListener('click', function () {
+  isLocked = !isLocked;
+  sendControl('lock', { on: isLocked });
+  updateLockBtn();
+});
+
+$('send-chat-btn').addEventListener('click', sendChat);
+
+$('chat-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') sendChat();
+});
+
+// Mute toggle — video starts muted for autoplay policy; click to unmute.
+$('mute-btn').addEventListener('click', function () {
+  const video = $('remote-video');
+  video.muted = !video.muted;
+  $('mute-btn').textContent = video.muted ? '🔇 Unmute' : '🔊 Mute';
+});
+</script>
+</body>
+</html>
