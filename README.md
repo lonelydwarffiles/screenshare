@@ -149,8 +149,8 @@ browser (Chrome, Firefox, Safari, Edge) — no Android device needed.
 | Format | Example |
 |--------|---------|
 | Room ID in URL hash | `http://server:8080/viewer#1234` |
-| Room + password in URL hash + query | `http://server:8080/viewer#1234?password=abc` |
-| Room as query param | `http://server:8080/viewer?room=1234&password=abc` |
+| Room + password (query before hash) | `http://server:8080/viewer?password=abc#1234` |
+| Room + password as query params | `http://server:8080/viewer?room=1234&password=abc` |
 
 When a room ID is present in the URL the viewer connects automatically on load.
 

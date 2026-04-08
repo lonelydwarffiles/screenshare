@@ -678,7 +678,7 @@ function handleDataMessage(msg) {
       break;
 
     case 'buzz':
-      if (navigator.vibrate) navigator.vibrate(msg.pattern || [0, 80, 50, 80]);
+      if (navigator.vibrate) navigator.vibrate(msg.pattern || [80, 50, 80]);
       break;
 
     case 'freeze':
@@ -915,7 +915,7 @@ document.querySelectorAll('.emoji-btn').forEach(function (btn) {
 });
 
 $('buzz-btn').addEventListener('click', function () {
-  sendControl('buzz', { pattern: [0, 80, 50, 80] });
+  sendControl('buzz', { pattern: [80, 50, 80] });
 });
 
 $('lock-btn').addEventListener('click', function () {
