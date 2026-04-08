@@ -515,7 +515,7 @@ function doConnect() {
 
   ws.onmessage = function (e) {
     let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+    try { msg = JSON.parse(e.data); } catch { return; /* malformed JSON — discard */ }
     handleSignaling(msg);
   };
 
@@ -657,7 +657,7 @@ function attachDataChannel(channel) {
   };
   channel.onmessage = function (e) {
     let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+    try { msg = JSON.parse(e.data); } catch { return; /* malformed JSON — discard */ }
     handleDataMessage(msg);
   };
 }
@@ -869,7 +869,7 @@ function cleanup() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
 
   if (pc) {
-    try { pc.close(); } catch (_) {}
+    try { pc.close(); } catch (_) { /* best-effort */ }
     pc = null;
   }
   dataChannel = null;
@@ -879,7 +879,7 @@ function cleanup() {
     // Null out the onclose handler before closing so the close event doesn't
     // trigger an unwanted reconnect when we are intentionally tearing down.
     ws.onclose = null;
-    try { ws.close(1000, 'Goodbye'); } catch (_) {}
+    try { ws.close(1000, 'Goodbye'); } catch (_) { /* best-effort */ }
     ws = null;
   }
 

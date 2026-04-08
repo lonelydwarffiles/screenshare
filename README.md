@@ -85,7 +85,7 @@ You can also deep-link directly to a session:
 
 ```
 http://<server-ip>:8080/viewer#<roomId>
-http://<server-ip>:8080/viewer#<roomId>?password=<pin>
+http://<server-ip>:8080/viewer?password=<pin>#<roomId>
 ```
 
 **Option B — Android viewer app**
