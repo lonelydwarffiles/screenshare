@@ -75,6 +75,21 @@ On the app's home screen enter the WebSocket URL of your signaling server:
 
 ### 5. Watch the stream
 
+**Option A — Browser viewer (no Android required)**
+
+1. Open `http://<server-ip>:8080/viewer` in any modern browser.
+2. Enter the room ID (and password if set) and click **Connect**.
+3. The broadcaster's screen appears in the browser.
+
+You can also deep-link directly to a session:
+
+```
+http://<server-ip>:8080/viewer#<roomId>
+http://<server-ip>:8080/viewer#<roomId>?password=<pin>
+```
+
+**Option B — Android viewer app**
+
 1. Open the app on the **viewer** device.
 2. Tap **Watch a Stream**.
 3. Enter the room ID and tap **Connect**.
@@ -99,7 +114,9 @@ On the app's home screen enter the WebSocket URL of your signaling server:
 screenshare/
 ├── server/                        # Node.js signaling server
 │   ├── server.js
-│   └── package.json
+│   ├── package.json
+│   └── public/
+│       └── viewer.html            # Browser viewer (served at GET /viewer)
 └── android/                       # Android app
     ├── build.gradle
     ├── settings.gradle
@@ -117,6 +134,46 @@ screenshare/
             ├── layout/
             └── values/
 ```
+
+---
+
+## Browser Viewer
+
+The signaling server includes a built-in web viewer that works in any modern
+browser (Chrome, Firefox, Safari, Edge) — no Android device needed.
+
+**URL:** `http://<server-ip>:<PORT>/viewer`
+
+### Deep-link formats
+
+| Format | Example |
+|--------|---------|
+| Room ID in URL hash | `http://server:8080/viewer#1234` |
+| Room + password in URL hash + query | `http://server:8080/viewer#1234?password=abc` |
+| Room as query param | `http://server:8080/viewer?room=1234&password=abc` |
+
+When a room ID is present in the URL the viewer connects automatically on load.
+
+### Browser viewer controls
+
+| Control | Description |
+|---------|-------------|
+| Emoji reactions (❤️ 🔥 👀 🥵 😈) | Sends `emoji` message to broadcaster |
+| 📳 Buzz | Vibrates broadcaster's device |
+| 🔒 Lock / 🔓 Unlock | Toggles `LockOverlayManager` on broadcaster |
+| Chat | Send and receive text messages with broadcaster |
+| Click/drag on video | Sends normalised touch coordinates → broadcaster injects gesture |
+| 🔇 Unmute button | Audio starts muted for autoplay policy; click to unmute |
+
+### Incoming broadcaster events
+
+| Event | Browser behaviour |
+|-------|------------------|
+| `blackout` | Dims the video with a black overlay |
+| `countdown` | Shows a full-screen countdown timer |
+| `freeze` | Video frame naturally freezes (capture stopped) |
+| `buzz` | Vibrates viewer's device via `navigator.vibrate` (where supported) |
+| `chat` | Message appended to chat log |
 
 ---
 
