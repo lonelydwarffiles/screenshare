@@ -5,7 +5,9 @@
  * Messages are plain JSON objects with a "type" field.
  *
  * Client → server:
- *   create        { roomId, password? }   – broadcaster registers a session slug
+ *   create        { roomId, password?, salt? } – broadcaster registers a session slug;
+ *                                              salt is a hex string used by the viewer
+ *                                              to derive the same signaling-encryption key
  *   join          { roomId, password? }   – viewer connects to a session
  *   offer         { sdp }                 – broadcaster → viewer
  *   answer        { sdp }                 – viewer → broadcaster
@@ -13,7 +15,7 @@
  *
  * Server → client:
  *   created        { roomId }             – session registered successfully
- *   joined         { roomId }             – viewer admitted
+ *   joined         { roomId, salt? }      – viewer admitted; salt mirrors what the broadcaster sent
  *   viewer_joined  {}                     – broadcaster notified viewer arrived
  *   viewer_left    {}                     – broadcaster notified viewer disconnected
  *   broadcast_ended {}                    – viewer notified broadcaster left
@@ -75,6 +77,7 @@ const wss = new WebSocket.Server({ server });
  *   broadcaster: WebSocket,
  *   viewer:      WebSocket | null,
  *   password:    string    | null,
+ *   salt:        string    | null,
  *   expireTimer: ReturnType<typeof setTimeout> | null,
  * }>
  */
@@ -107,13 +110,14 @@ function handleMessage(ws, msg) {
         // ------------------------------------------------------------------
 
         case 'create': {
-            const { roomId, password } = msg;
+            const { roomId, password, salt } = msg;
             if (!roomId) { return safeSend(ws, { type: 'error', message: 'roomId required' }); }
             if (sessions.has(roomId)) { return safeSend(ws, { type: 'error', message: 'Session already exists' }); }
             sessions.set(roomId, {
                 broadcaster: ws,
                 viewer: null,
                 password: password || null,
+                salt: salt || null,
                 expireTimer: null,
             });
             ws.sessionId = roomId;
@@ -137,7 +141,7 @@ function handleMessage(ws, msg) {
             session.viewer = ws;
             ws.sessionId = roomId;
             ws.role = 'viewer';
-            safeSend(ws, { type: 'joined', roomId });
+            safeSend(ws, { type: 'joined', roomId, ...(session.salt ? { salt: session.salt } : {}) });
             safeSend(session.broadcaster, { type: 'viewer_joined' });
             console.log(`Viewer joined session: ${roomId}`);
             break;
