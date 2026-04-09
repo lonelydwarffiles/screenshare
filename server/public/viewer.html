@@ -427,6 +427,87 @@ let touchCaptureAttached = false;
 let countdownInterval   = null;
 let isDestroyed         = false;
 
+/** CryptoKey derived from password+salt; null when no password is set. */
+let sessionCryptoKey = null;
+
+// ---------------------------------------------------------------------------
+// Signaling encryption helpers (Web Crypto API — AES-256-GCM + PBKDF2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive an AES-256-GCM key from [password] and hex-encoded [saltHex] using
+ * PBKDF2-SHA-256 (100 000 iterations).  Result is stored in sessionCryptoKey.
+ */
+async function initSessionCrypto(password, saltHex) {
+  const enc      = new TextEncoder();
+  const saltBuf  = hexToBytes(saltHex);
+  const baseKey  = await crypto.subtle.importKey(
+    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  sessionCryptoKey = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBuf, iterations: 100000, hash: 'SHA-256' },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+/**
+ * Encrypt [plaintext] string.
+ * Returns { iv: base64url, ct: base64url } or null if crypto is not active.
+ */
+async function encryptPayload(plaintext) {
+  if (!sessionCryptoKey) return null;
+  const iv         = crypto.getRandomValues(new Uint8Array(12));
+  const enc        = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    sessionCryptoKey,
+    enc.encode(plaintext),
+  );
+  return { iv: bytesToBase64Url(iv), ct: bytesToBase64Url(new Uint8Array(ciphertext)) };
+}
+
+/**
+ * Decrypt a { iv, ct } payload.
+ * Returns the plaintext string, or null on failure.
+ */
+async function decryptPayload(iv, ct) {
+  if (!sessionCryptoKey) return null;
+  try {
+    const ivBuf  = base64UrlToBytes(iv);
+    const ctBuf  = base64UrlToBytes(ct);
+    const plain  = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: ivBuf },
+      sessionCryptoKey,
+      ctBuf,
+    );
+    return new TextDecoder().decode(plain);
+  } catch (e) {
+    console.error('Decryption failed', e);
+    return null;
+  }
+}
+
+function bytesToBase64Url(bytes) {
+  let str = '';
+  bytes.forEach(function (b) { str += String.fromCharCode(b); });
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function base64UrlToBytes(b64url) {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+}
+
+function hexToBytes(hex) {
+  return new Uint8Array(hex.length / 2).map(function (_, i) {
+    return parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // DOM helpers
 // ---------------------------------------------------------------------------
@@ -549,15 +630,30 @@ function handleSignaling(msg) {
       resetReconnectDelay();
       setConnectStatus('');
       setStreamStatus('Waiting for stream…');
+      // Initialise signaling encryption if the server relayed a salt.
+      if (msg.salt && currentPassword) {
+        initSessionCrypto(currentPassword, msg.salt).catch(function (e) {
+          console.error('Crypto init failed', e);
+        });
+      }
       break;
 
     case 'offer':
-      handleOffer(msg.sdp);
+      handleOffer(msg);
       break;
 
     case 'ice_candidate':
-      if (pc && msg.candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(function () {});
+      if (pc) {
+        // Decrypt if encrypted, otherwise use the candidate field directly.
+        (msg.iv && msg.ct
+          ? decryptPayload(msg.iv, msg.ct).then(function (plain) {
+              if (plain) return JSON.parse(plain);
+              return null;
+            })
+          : Promise.resolve(msg.candidate)
+        ).then(function (candidate) {
+          if (candidate) pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function () {});
+        });
       }
       break;
 
@@ -581,7 +677,24 @@ function handleSignaling(msg) {
   }
 }
 
-function handleOffer(sdp) {
+function handleOffer(offerMsg) {
+  // Decrypt the offer payload if encrypted, then proceed.
+  var sdpPromise;
+  if (offerMsg.iv && offerMsg.ct) {
+    sdpPromise = decryptPayload(offerMsg.iv, offerMsg.ct).then(function (plain) {
+      return plain ? JSON.parse(plain).sdp : null;
+    });
+  } else {
+    sdpPromise = Promise.resolve(offerMsg.sdp || null);
+  }
+
+  sdpPromise.then(function (sdp) {
+    if (!sdp) { setStreamStatus('Failed to decrypt offer'); return; }
+    doHandleOffer(sdp);
+  });
+}
+
+function doHandleOffer(sdp) {
   try {
     pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -603,14 +716,19 @@ function handleOffer(sdp) {
 
     pc.onicecandidate = function (e) {
       if (!e.candidate || !ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({
-        type: 'ice_candidate',
-        candidate: {
-          sdpMid:        e.candidate.sdpMid,
-          sdpMLineIndex: e.candidate.sdpMLineIndex,
-          candidate:     e.candidate.candidate,
-        },
-      }));
+      const candidateObj = {
+        sdpMid:        e.candidate.sdpMid,
+        sdpMLineIndex: e.candidate.sdpMLineIndex,
+        candidate:     e.candidate.candidate,
+      };
+      encryptPayload(JSON.stringify(candidateObj)).then(function (encrypted) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (encrypted) {
+          ws.send(JSON.stringify({ type: 'ice_candidate', iv: encrypted.iv, ct: encrypted.ct }));
+        } else {
+          ws.send(JSON.stringify({ type: 'ice_candidate', candidate: candidateObj }));
+        }
+      });
     };
 
     pc.oniceconnectionstatechange = function () {
@@ -629,9 +747,14 @@ function handleOffer(sdp) {
         return pc.setLocalDescription(answer).then(function () { return answer; });
       })
       .then(function (answer) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
-        }
+        return encryptPayload(JSON.stringify({ sdp: answer.sdp })).then(function (encrypted) {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          if (encrypted) {
+            ws.send(JSON.stringify({ type: 'answer', iv: encrypted.iv, ct: encrypted.ct }));
+          } else {
+            ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+          }
+        });
       })
       .catch(function (err) {
         setStreamStatus('WebRTC error: ' + err.message);
@@ -867,6 +990,8 @@ function resetReconnectDelay() {
 
 function cleanup() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  sessionCryptoKey = null;
 
   if (pc) {
     try { pc.close(); } catch (_) { /* best-effort */ }
