@@ -28,7 +28,9 @@
 
 'use strict';
 
+const fs   = require('fs');
 const http = require('http');
+const path = require('path');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8080;
@@ -43,6 +45,19 @@ const server = http.createServer((req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ScreenShare signaling server OK\n');
+        return;
+    }
+    if (req.method === 'GET' && (req.url === '/viewer' || req.url === '/viewer.html')) {
+        const filePath = path.join(__dirname, 'public', 'viewer.html');
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('viewer.html not found\n');
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(data);
+        });
         return;
     }
     res.writeHead(404, { 'Content-Type': 'text/plain' });
